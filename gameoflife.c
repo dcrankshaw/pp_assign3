@@ -115,6 +115,12 @@ int main(int argc, char **argv)
   next = (ID + 1) % num_procs;
   prev = ID == 0 ? num_procs - 1 : ID - 1;
 
+  if(ID == 0) {
+    int **full_grid = (int **) malloc(sizeof(int *) * ROWS);
+
+
+  }
+
   int iter;
   for(iter = 0; iter < ITERATIONS; iter++) {
 
@@ -130,17 +136,44 @@ int main(int argc, char **argv)
       MPI_Ssend( my_bottom, COLUMNS, MPI_INT, next, 2, MPI_COMM_WORLD);
       MPI_Ssend( my_top, COLUMNS, MPI_INT, prev, 2, MPI_COMM_WORLD);
     }
+
     /* Send state to 0 */
     if(ID != 0) {
       for(i = 0; i < num_rows; i++) {
-	MPI_Ssend(my_rows[i], COLUMNS, MPI_INT, 0, i, MPI_COMM_WORLD);
+        MPI_Ssend(my_rows[i], COLUMNS, MPI_INT, 0, i, MPI_COMM_WORLD);
       }
     }
     else {
-      for(i = 1; i < num_procs; i++
-
+      for(i = 0; i < num_rows; i++) {
+        full_grid[i] = my_rows[i];
+      }
+      for(i = 1; i < num_procs; i++) {
+        for(j = 0; j < num_rows; j++) {
+          MPI_Recv (full_grid[num_procs*i + num_rows], COLUMNS, MPI_INT, i, j, MPI_COMM_WORLD, &stat);
+        }
+      }
+      /* Once the entire state of the grid has been received, print it out */
+      printf("Iteration %d: updated grid\n", iter);
+      for(i = 0; i < ROWS; i++) {
+        for(j = 0; j < COLUMNS; j++) {
+          printf("%d ", fullgrid[i][j]);
+        }
+        printf("...\n");
+      }
     }
 
+    /* Now update state */
+    for(i = 0; i < num_rows; i++)
+    {
+      if(i == 0) {
+        update_row(my_rows[i], my_rows[i + 1], foreign_top, new_row);
+      }
+      else if (i == (num_rows + 1)) {
+        update_row(my_rows[i], foreign_bottom, my_rows[i - 1], new_row);
+      }
+      else
+      update_row(my_rows[i], my_rows[i + 1], my_rows[i - 1], new_row);
+    }
   }
 
   
