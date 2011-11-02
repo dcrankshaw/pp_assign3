@@ -142,7 +142,7 @@ int main(int argc, char **argv)
   //printf("Process %i successfully initiliazed\n", ID);fflush(stdout);
 
   
-  for(iter = iter; iter < ITERATIONS; iter++) {
+  for(iter = 0; iter < ITERATIONS; iter++) {
     /* TODO This will block if only one (or two??) processes */
     if ( ID % 2 == 0) {
       MPI_Ssend( my_bottom, COLUMNS, MPI_INT, next, 2, MPI_COMM_WORLD);
@@ -209,22 +209,30 @@ int main(int argc, char **argv)
 
 
   for(i = 0; i < num_rows; i++) {
-    free(my_rows[i]);
+    if(my_rows[i])
+      free(my_rows[i]);
   }
   if(full_grid) {
     for(i = 0; i < ROWS; i++) {
-      free(full_grid[i]);
+      if(full_grid[i])
+        free(full_grid[i]);
     }
-    free(full_grid);
+    if(full_grid)
+      free(full_grid);
   }
-  free(my_rows);
-  free(foreign_top);
-  free(foreign_bottom);
+  if(my_rows)
+    free(my_rows);
+  if(foreign_top)
+    free(foreign_top);
+  if(foreign_bottom)
+    free(foreign_bottom);
   for(i = 0; i < num_rows; i++) {
-    free(new_rows[i]);
+    if(new_rows[i])
+      free(new_rows[i]);
   }
-  free(new_rows);
-  MPI_Finalize();
+  if(new_rows)
+    free(new_rows);
+  //MPI_Finalize();
   return 0;
 
 }
