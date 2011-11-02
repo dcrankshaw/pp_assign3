@@ -108,7 +108,7 @@ int main(int argc, char **argv)
   int **full_grid, **new_rows;
   int i, j;
   int current_row;
-  // printf("Process %i reached here\n", ID);fflush(stdout);
+  //printf("Process %i reached here\n", ID);fflush(stdout);
   for(i = 0; i < num_rows; i++) {
     current_row = ID*num_rows + i;
     my_rows[i] = (int *) malloc(sizeof(int) * COLUMNS);
@@ -137,80 +137,106 @@ int main(int argc, char **argv)
       full_grid[i] = (int *) malloc(sizeof(int) * COLUMNS);
     }
   }
+  else {
+    full_grid = NULL;
+  }
 
   int iter;
   //printf("Process %i successfully initiliazed\n", ID);fflush(stdout);
 
   
   for(iter = 0; iter < ITERATIONS; iter++) {
-    /* TODO This will block if only one (or two??) processes */
-    if ( ID % 2 == 0) {
-      MPI_Ssend( my_bottom, COLUMNS, MPI_INT, next, 2, MPI_COMM_WORLD);
-      MPI_Ssend( my_top, COLUMNS, MPI_INT, prev, 2, MPI_COMM_WORLD);
-      MPI_Recv ( foreign_top, COLUMNS, MPI_INT, prev, 2, MPI_COMM_WORLD, &stat);
-      MPI_Recv ( foreign_bottom, COLUMNS, MPI_INT, next, 2, MPI_COMM_WORLD, &stat);
-    }
-    else {
-      MPI_Recv ( foreign_top, COLUMNS, MPI_INT, prev, 2, MPI_COMM_WORLD, &stat);
-      MPI_Recv ( foreign_bottom, COLUMNS, MPI_INT, next, 2, MPI_COMM_WORLD, &stat);
-      MPI_Ssend( my_bottom, COLUMNS, MPI_INT, next, 2, MPI_COMM_WORLD);
-      MPI_Ssend( my_top, COLUMNS, MPI_INT, prev, 2, MPI_COMM_WORLD);
-    }
-    //printf("Process %d exchanged state\n", ID); fflush(stdout);
-    /* Send state to 0 */
-    if(ID != 0) {
-      for(i = 0; i < num_rows; i++) {
-	assert(my_rows[i] != NULL);
-        MPI_Ssend(my_rows[i], COLUMNS, MPI_INT, 0, i, MPI_COMM_WORLD);
-      }
-    }
-    else {
-      for(i = 0; i < num_rows; i++) {
-        full_grid[i] = my_rows[i];
-      }
-      for(i = 1; i < num_procs; i++) {
-        for(j = 0; j < num_rows; j++) {
-          MPI_Recv (full_grid[num_procs*i + j], COLUMNS, MPI_INT, i, j, MPI_COMM_WORLD, &stat);
-        }
-      }
-      /* Once the entire state of the grid has been received, print it out */
+    if(num_procs == 1) {
+
       printf("Iteration %d: updated grid\n", iter);
       for(i = 0; i < ROWS; i++) {
         for(j = 0; j < COLUMNS; j++) {
-          printf("%d ", full_grid[i][j]);
+          printf("%d ", my_rows[i][j]);
         }
         printf("\n");fflush(stdout);
       }
       printf("...\n");
+
+      for(i = 0; i < ROWS; i++) {
+        if(i == 0) {
+          update_row(my_rows[i], my_rows[i + 1], my_rows[ROWS-1], new_rows[i]);
+        }
+        else if (i == (ROWS - 1)) {
+          update_row(my_rows[i], my_rows[0], my_rows[i - 1], new_rows[i]);
+        }
+        else
+        update_row(my_rows[i], my_rows[i + 1], my_rows[i - 1], new_rows[i]);
+      }
+      for(i = 0; i < num_rows; i++) {
+        memmove(my_rows[i], new_rows[i], COLUMNS*sizeof(int));
+      }
+
     }
 
-    /* Now update state */
-    for(i = 0; i < num_rows; i++)
-    {
-      if(i == 0) {
-        update_row(my_rows[i], my_rows[i + 1], foreign_top, new_rows[i]);
+    else {
+      if ( ID % 2 == 0) {
+        MPI_Ssend( my_bottom, COLUMNS, MPI_INT, next, 0, MPI_COMM_WORLD);
+        MPI_Ssend( my_top, COLUMNS, MPI_INT, prev, 1, MPI_COMM_WORLD);
+        MPI_Recv ( foreign_top, COLUMNS, MPI_INT, prev, 3, MPI_COMM_WORLD, &stat);
+        MPI_Recv ( foreign_bottom, COLUMNS, MPI_INT, next, 4, MPI_COMM_WORLD, &stat);
       }
-      else if (i == (num_rows - 1)) {
-        update_row(my_rows[i], foreign_bottom, my_rows[i - 1], new_rows[i]);
+      else {
+        MPI_Recv ( foreign_top, COLUMNS, MPI_INT, prev, 0, MPI_COMM_WORLD, &stat);
+        MPI_Recv ( foreign_bottom, COLUMNS, MPI_INT, next, 1, MPI_COMM_WORLD, &stat);
+        MPI_Ssend( my_bottom, COLUMNS, MPI_INT, next, 3, MPI_COMM_WORLD);
+        MPI_Ssend( my_top, COLUMNS, MPI_INT, prev, 4, MPI_COMM_WORLD);
       }
-      else
-      update_row(my_rows[i], my_rows[i + 1], my_rows[i - 1], new_rows[i]);
+      //printf("Process %d exchanged state\n", ID); fflush(stdout);
+      /* Send state to 0 */
+      if(ID != 0) {
+        for(i = 0; i < num_rows; i++) {
+          assert(my_rows[i] != NULL);
+          MPI_Ssend(my_rows[i], COLUMNS, MPI_INT, 0, i, MPI_COMM_WORLD);
+        }
+      }
+      else {
+        for(i = 0; i < num_rows; i++) {
+          memmove(full_grid[i], my_rows[i], COLUMNS*sizeof(int));
+        }
+        for(i = 1; i < num_procs; i++) {
+          for(j = 0; j < num_rows; j++) {
+            MPI_Recv (full_grid[num_rows*i + j], COLUMNS, MPI_INT, i, j, MPI_COMM_WORLD, &stat);
+          }
+        }
+        /* Once the entire state of the grid has been received, print it out */
+        //printf("Iteration %d: updated grid\n", iter);
+        for(i = 0; i < ROWS; i++) {
+          for(j = 0; j < COLUMNS; j++) {
+            printf("%d ", full_grid[i][j]);
+          }
+          printf("\n");fflush(stdout);
+        }
+        printf("...\n");
+      }
+
+      /* Now update state */
+      for(i = 0; i < num_rows; i++) {
+        if(i == 0) {
+          update_row(my_rows[i], my_rows[i + 1], foreign_top, new_rows[i]);
+        }
+        else if (i == (num_rows - 1)) {
+          update_row(my_rows[i], foreign_bottom, my_rows[i - 1], new_rows[i]);
+        }
+        else
+        update_row(my_rows[i], my_rows[i + 1], my_rows[i - 1], new_rows[i]);
+      }
+      for(i = 0; i < num_rows; i++) {
+        memmove(my_rows[i], new_rows[i], COLUMNS*sizeof(int));
+      }
     }
-    for(i = 0; i < num_rows; i++) {
-      memmove(my_rows[i], new_rows[i], COLUMNS*sizeof(int));
-    }
+
   }
-
-  
-
-
-
-
 
 
   for(i = 0; i < num_rows; i++) {
     if(my_rows[i])
       free(my_rows[i]);
+
   }
   if(full_grid) {
     for(i = 0; i < ROWS; i++) {
@@ -232,49 +258,7 @@ int main(int argc, char **argv)
   }
   if(new_rows)
     free(new_rows);
-  //MPI_Finalize();
+  MPI_Finalize();
   return 0;
 
 }
-
-
-
-
-
-/** update_row test main
-int main(void)
-{
-  int *upper = (int *)malloc(sizeof(int)*16);
-  int *row = (int *)malloc(sizeof(int)*16);
-  int *lower = (int *)malloc(sizeof(int)*16);
-  int *new_row = (int *)malloc(sizeof(int)*16);
-
-  const int upper_init[16] = {0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0};
-  const int row_init[16] =   {0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0};
-  const int lower_init[16] = {0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0};
-
-  int i;
-  for(i = 0; i < COLUMNS; i++) {
-    upper[i] = upper_init[i];
-    row[i] = row_init[i];
-    lower[i] = lower_init[i];
-  }
-
-
-  update_row(row, lower, upper, new_row);
-  for(i = 0; i < COLUMNS; i++) {
-    printf("%i, ", new_row[i]);
-  }
-  printf("\n");
-
-
-  free(upper);
-  free(lower);
-  free(row);
-  free(new_row);
-
-
-  return 0;
-
-}
-*/
