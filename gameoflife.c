@@ -55,7 +55,6 @@ void update_row(int *row, int *lower, int *upper, int *new_row)
 	new_row[i] = 0;
       }
   }
-
 }
 
 
@@ -97,7 +96,15 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &ID);
   assert((ID < ROWS));
 
-  assert((ROWS % num_procs == 0));
+  //assert((ROWS % num_procs == 0));
+
+  if((ROWS % num_procs) != 0) {
+    if(ID == 0) {
+      printf("This is not a valid number of processes. Please use a factor of %d.\n", ROWS);
+    }
+    MPI_Finalize();
+    return 0;
+  }
 
   //foreign_bottom is one row below my_bottom, foreign_top is one row above my_top
   int *my_top, *my_bottom, *foreign_top, *foreign_bottom;
@@ -122,7 +129,7 @@ int main(int argc, char **argv)
   
   
   next = (ID + 1) % num_procs;
-  prev = ID == 0 ? num_procs - 1 : ID - 1;
+  prev = ID == 0 ? (num_procs - 1) : (ID - 1);
 
   new_rows = (int **) malloc(sizeof(int *) * num_rows);
   for(i = 0; i < num_rows; i++) {
@@ -209,14 +216,18 @@ int main(int argc, char **argv)
           for(j = 0; j < COLUMNS; j++) {
             printf("%d ", full_grid[i][j]);
           }
-          printf("\n");fflush(stdout);
+          printf("\n");
         }
         printf("...\n");
+        fflush(stdout);
       }
 
       /* Now update state */
       for(i = 0; i < num_rows; i++) {
-        if(i == 0) {
+        if(num_rows == 1) {
+          update_row(my_rows[i], foreign_bottom, foreign_top, new_rows[i]);
+        }
+        else if(i == 0) {
           update_row(my_rows[i], my_rows[i + 1], foreign_top, new_rows[i]);
         }
         else if (i == (num_rows - 1)) {
@@ -231,7 +242,6 @@ int main(int argc, char **argv)
     }
 
   }
-
 
   for(i = 0; i < num_rows; i++) {
     if(my_rows[i])
