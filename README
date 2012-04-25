@@ -1,0 +1,15 @@
+I used OpenMPI on my dual-core macbook pro for this assignment.
+
+The project can be built with:
+mpicc gameoflife.c -o gameoflife
+
+and run with:
+mpirun -np PROCESSES ./gameoflife
+
+where PROCESSES is the number of processes you want to run it with. It can be run
+with 1, 2, 4, 8, or 16 processes.
+
+As specified in the assignment, the grid starts with the glider pattern in the upper
+left hand corner, and runs for 64 iterations (not including the 0th iteration,
+although the starting board is printed out) until the pattern returns to its starting
+spot.
